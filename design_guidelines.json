@@ -1,0 +1,99 @@
+{
+  "theme": "LIGHT",
+  "archetype": "1 (Organic & Earthy)",
+  "typography": {
+    "fonts": [
+      {
+        "name": "Work Sans",
+        "type": "heading",
+        "css_import": "@import url('https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600;700&display=swap');"
+      },
+      {
+        "name": "IBM Plex Sans",
+        "type": "body",
+        "css_import": "@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap');"
+      }
+    ],
+    "rules": {
+      "headings": "font-sans font-bold tracking-tight text-stone-900",
+      "body": "font-mono text-base leading-relaxed text-stone-700",
+      "labels": "uppercase text-xs font-semibold tracking-[0.2em] text-stone-500"
+    }
+  },
+  "colors": {
+    "background": "bg-stone-50",
+    "surface": "bg-white",
+    "border": "border-stone-200",
+    "text_primary": "text-stone-900",
+    "text_secondary": "text-stone-500",
+    "primary": {
+      "base": "bg-orange-600",
+      "hover": "hover:bg-orange-700",
+      "text": "text-white"
+    },
+    "secondary": {
+      "base": "bg-emerald-600",
+      "text": "text-white"
+    },
+    "accent": {
+      "base": "bg-amber-100",
+      "text": "text-amber-900"
+    }
+  },
+  "spacing_and_layout": {
+    "strategy": "Control Room Grid (Dense, Data Correlation)",
+    "container": "h-screen w-full flex flex-col md:flex-row overflow-hidden",
+    "panels": {
+      "left": "w-full md:w-[350px] lg:w-[400px] h-full overflow-y-auto border-r border-stone-200 bg-white p-6 flex flex-col gap-6",
+      "center": "flex-1 h-full flex flex-col bg-stone-50 relative",
+      "right": "w-full md:w-[350px] lg:w-[400px] h-full overflow-y-auto border-l border-stone-200 bg-white p-6 flex flex-col gap-6"
+    },
+    "padding_rules": "Use generous padding inside panels (p-6). Between sections use gap-8. For list items use p-4."
+  },
+  "components": {
+    "strategy": "Use Shadcn UI with customized rounded corners (rounded-xl for cards, rounded-lg for buttons). Clean, minimal borders. No heavy shadows, use 1px solid strokes or subtle shadow-sm.",
+    "list": [
+      "Button (rounded-lg, hover effects)",
+      "Input (rounded-lg, focus:ring-orange-500)",
+      "Slider (for category weights)",
+      "Select (for speed and predefined categories)",
+      "Card (rounded-xl, border-stone-200, bg-white, shadow-sm)",
+      "Accordion / Collapsible (for points settings)",
+      "Tabs (for mobile view switching)",
+      "Badge (rounded-full, text-xs)",
+      "ScrollArea",
+      "Dialog (for Save/Load routes)",
+      "Label",
+      "Sonner (for toast notifications)"
+    ]
+  },
+  "design_features": {
+    "glassmorphism": "Not recommended for this data-heavy app. Use solid flat surfaces with crisp borders.",
+    "neumorphism": "Use on KPI summary cards top of map (bg-white, shadow-sm, border border-stone-100).",
+    "icons": "Use lucide-react or @phosphor-icons/react. Preferred Phosphor for an earthy, high-end feel.",
+    "empty_state": "Display a beautiful vintage map image with a prompt to paste a Google My Maps URL."
+  },
+  "media": {
+    "images": [
+      {
+        "url": "https://images.unsplash.com/photo-1532154078493-c1c3eef2023c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Njl8MHwxfHNlYXJjaHwxfHxtYXAlMjB0cmF2ZWwlMjByb3V0ZSUyMHZpbnRhZ2V8ZW58MHx8fHwxNzgxNTY0MzU0fDA&ixlib=rb-4.1.0&q=85",
+        "description": "gray and white map",
+        "category": "empty_state_background"
+      }
+    ]
+  },
+  "accessibility": {
+    "contrast": "Ensure all text meets 4.5:1 ratio. Orange-600 on white is accessible. Stone-500 on white is accessible.",
+    "testing_attributes": "All interactive elements MUST have data-testid in kebab-case based on role (e.g. data-testid='generate-route-button')."
+  },
+  "instructions_to_main_agent": {
+    "1": "The UI text MUST be in Spanish as requested by the user.",
+    "2": "Implement a 3-column layout on desktop: Left (Settings & Data Import), Center (Map Embed & KPI Summaries), Right (Generated Itinerary).",
+    "3": "Fetch KML points from the Google My Maps URL (usually by appending &output=kml to the map URL). Extract placemarks, coordinates, and names.",
+    "4": "In the left panel, provide sliders to adjust category weights (e.g., Museum=5, Restaurant=3). These weights are crucial for the algorithm.",
+    "5": "Implement a route optimization algorithm (can be a greedy heuristic or a simplified knapsack + TSP approach) that considers the total available hours, travel time between points (based on selected speed and straight-line/haversine distance if real routing API is unavailable), and maximizes the total value (sum of weights).",
+    "6": "Use the provided image for the empty state before a map URL is imported.",
+    "7": "Provide a Save/Load functionality using MongoDB (call backend endpoints to store/retrieve itineraries).",
+    "8": "Apply the typography using Tailwind config (Work Sans for headings, IBM Plex Sans for body)."
+  }
+}
