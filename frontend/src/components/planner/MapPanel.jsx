@@ -60,7 +60,7 @@ export default function MapPanel({ embedUrl, points, result, settings, categorie
 
       {result && result.skipped.length > 0 && (
         <div className="px-4 py-2 bg-amber-50 border-t border-amber-200 text-xs text-amber-900" data-testid="skipped-banner">
-          <strong>{result.skipped.length}</strong> paradas omitidas por falta de tiempo. Aumenta las horas o sube el peso de sus categorías.
+          <strong>{result.skipped.length}</strong> {result.skipped.length === 1 ? "parada omitida" : "paradas omitidas"} por falta de tiempo. Aumenta las horas o sube el peso de sus categorías.
         </div>
       )}
     </main>
