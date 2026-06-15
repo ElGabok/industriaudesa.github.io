@@ -9,6 +9,8 @@ import { fetchCategories, importKml, optimizeRoute, saveItinerary, listItinerari
 
 const DEFAULT_MAP_URL =
   "https://www.google.com/maps/d/u/0/viewer?hl=es&mid=1HQl3rOxugsFF6tk2yGjLyD9nWxoRPq0&ll=-34.63327132386221%2C-58.363339400000015&z=15";
+const DEFAULT_EMBED_URL =
+  "https://www.google.com/maps/d/embed?mid=1HQl3rOxugsFF6tk2yGjLyD9nWxoRPq0";
 
 // Categories that should not be selectable as user preferences (catch-all)
 const NON_PREFERENCE_IDS = new Set(["otros"]);
@@ -26,7 +28,7 @@ function computeWeights(categories) {
 
 export default function Planner() {
   const [mapUrl, setMapUrl] = useState(DEFAULT_MAP_URL);
-  const [embedUrl, setEmbedUrl] = useState("");
+  const [embedUrl, setEmbedUrl] = useState(DEFAULT_EMBED_URL);
   const [points, setPoints] = useState([]);
   const [categories, setCategories] = useState([]);
   const [settings, setSettings] = useState({
@@ -197,7 +199,6 @@ export default function Planner() {
 
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
         <LeftPanel
-          importing={importing}
           categories={categories}
           toggleCategorySelected={toggleCategorySelected}
           updateCategoryDuration={updateCategoryDuration}
@@ -207,7 +208,6 @@ export default function Planner() {
           setPoints={setPoints}
           onOptimize={handleOptimize}
           loading={loading}
-          onReimport={() => handleImport(DEFAULT_MAP_URL)}
           savedList={savedList}
           onLoad={handleLoad}
           onDelete={handleDelete}
