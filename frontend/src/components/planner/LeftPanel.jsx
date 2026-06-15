@@ -1,39 +1,41 @@
 import { useState } from "react";
-import { Download, Sparkles, Save, FolderOpen, Trash2, Settings2, MapPin, Clock, Footprints } from "lucide-react";
+import { Sparkles, Save, FolderOpen, Trash2, Settings2, MapPin, Clock, Footprints, RefreshCw, ListChecks } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 
 export default function LeftPanel({
-  mapUrl, setMapUrl, onImport, importing,
-  categories, setCategories,
+  importing,
+  categories,
+  toggleCategorySelected,
+  updateCategoryDuration,
   settings, setSettings,
   points, setPoints,
   onOptimize, loading,
+  onReimport,
   savedList, onLoad, onDelete, onSave, hasResult,
 }) {
   const [saveOpen, setSaveOpen] = useState(false);
   const [loadOpen, setLoadOpen] = useState(false);
   const [saveName, setSaveName] = useState("");
 
-  const updateCategory = (id, field, value) => {
-    setCategories((cs) => cs.map((c) => (c.id === id ? { ...c, [field]: value } : c)));
-  };
-
-  const updatePoint = (id, field, value) => {
-    setPoints((ps) => ps.map((p) => (p.id === id ? { ...p, [field]: value } : p)));
-  };
-
   const removePoint = (id) => {
     setPoints((ps) => ps.filter((p) => p.id !== id));
   };
+
+  const updatePointCategory = (id, category_id) => {
+    setPoints((ps) => ps.map((p) => (p.id === id ? { ...p, category_id } : p)));
+  };
+
+  const visibleCats = categories.filter((c) => c.id !== "otros");
+  const unselectedCount = visibleCats.filter((c) => !c.selected).length;
 
   return (
     <aside
@@ -41,35 +43,32 @@ export default function LeftPanel({
       data-testid="left-panel"
     >
       <div className="p-6 flex flex-col gap-6">
-        {/* IMPORT */}
-        <section className="flex flex-col gap-3">
-          <div className="flex items-center gap-2">
-            <Download size={14} className="text-orange-600" />
-            <Label className="uppercase text-xs font-semibold tracking-[0.2em] text-stone-500">
-              Importar mapa
-            </Label>
+        {/* MAP STATUS */}
+        <section className="rounded-xl border border-stone-200 bg-stone-50 p-4 flex items-start gap-3">
+          <div className="w-8 h-8 rounded-md bg-orange-600 text-white flex items-center justify-center shrink-0">
+            <MapPin size={16} />
           </div>
-          <p className="text-sm text-stone-600 leading-relaxed">
-            Pega la URL de un <strong>Google My Maps</strong> público. Extraeremos los marcadores en segundos.
-          </p>
-          <Input
-            data-testid="map-url-input"
-            value={mapUrl}
-            onChange={(e) => setMapUrl(e.target.value)}
-            placeholder="https://www.google.com/maps/d/viewer?mid=..."
-            className="rounded-lg focus-visible:ring-orange-500"
-          />
-          <Button
-            data-testid="import-map-button"
-            onClick={() => onImport(mapUrl)}
-            disabled={!mapUrl || importing}
-            className="bg-orange-600 hover:bg-orange-700 text-white rounded-lg"
+          <div className="flex-1 min-w-0">
+            <div className="font-display font-semibold text-stone-900 text-sm">Mapa de Buenos Aires</div>
+            <p className="text-xs text-stone-500 mt-0.5">
+              {importing
+                ? "Cargando puntos del My Maps…"
+                : points.length > 0
+                  ? `${points.length} puntos importados automáticamente`
+                  : "Esperando puntos…"}
+            </p>
+          </div>
+          <button
+            data-testid="reimport-map-button"
+            onClick={onReimport}
+            disabled={importing}
+            className="text-stone-500 hover:text-orange-600 disabled:opacity-40"
+            aria-label="Recargar mapa"
+            title="Recargar mapa"
           >
-            {importing ? "Importando..." : "Importar puntos"}
-          </Button>
+            <RefreshCw size={16} className={importing ? "animate-spin" : ""} />
+          </button>
         </section>
-
-        <div className="h-px bg-stone-200" />
 
         {/* SETTINGS */}
         <section className="flex flex-col gap-4">
@@ -134,7 +133,7 @@ export default function LeftPanel({
                 onClick={() => setSettings({ ...settings, speed_kmh: 30 })}
                 className="cursor-pointer hover:bg-stone-50"
                 data-testid="speed-preset-car"
-              >🚗 Coche 30</Badge>
+              >🚗 Auto 30</Badge>
             </div>
           </div>
 
@@ -157,58 +156,82 @@ export default function LeftPanel({
             className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg h-11"
           >
             <Sparkles size={16} className="mr-2" />
-            {loading ? "Calculando..." : "Generar ruta óptima"}
+            {loading ? "Calculando…" : "Generar ruta óptima"}
           </Button>
         </section>
 
         <div className="h-px bg-stone-200" />
 
-        {/* CATEGORIES */}
+        {/* CATEGORIES — checkboxes drive weight */}
         <section className="flex flex-col gap-3">
-          <Label className="uppercase text-xs font-semibold tracking-[0.2em] text-stone-500">
-            Pesos por categoría
-          </Label>
-          <p className="text-xs text-stone-500">A mayor peso, mayor prioridad en la ruta.</p>
-          <div className="flex flex-col gap-3" data-testid="categories-editor">
-            {categories.map((c) => (
-              <div key={c.id} className="rounded-lg border border-stone-200 p-3 bg-white" data-testid={`category-row-${c.id}`}>
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full" style={{ background: c.color }} />
-                    <span className="font-display font-semibold text-stone-900 text-sm">{c.name}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-stone-500">
-                    <span data-testid={`category-weight-${c.id}`}>Peso {c.weight}</span>
-                    <span>·</span>
-                    <span>{c.duration_min} min</span>
-                  </div>
+          <div className="flex items-center gap-2">
+            <ListChecks size={14} className="text-orange-600" />
+            <Label className="uppercase text-xs font-semibold tracking-[0.2em] text-stone-500">
+              ¿Qué te interesa?
+            </Label>
+          </div>
+          <p className="text-xs text-stone-500 leading-relaxed">
+            Marca lo que te interese. Las categorías marcadas reciben{" "}
+            <strong>+5 por cada categoría desmarcada</strong>; las desmarcadas se mantienen al final.
+            Si dejás todas marcadas, no hay preferencia y se prioriza recorrer la mayor cantidad de paradas posibles.
+          </p>
+
+          <div className="flex flex-col gap-2" data-testid="categories-editor">
+            {visibleCats.map((c) => (
+              <div
+                key={c.id}
+                className={`rounded-lg border p-3 transition ${
+                  c.selected ? "border-stone-200 bg-white" : "border-stone-200 bg-stone-50/60 opacity-80"
+                }`}
+                data-testid={`category-row-${c.id}`}
+              >
+                <div className="flex items-center gap-3">
+                  <Checkbox
+                    data-testid={`category-checkbox-${c.id}`}
+                    checked={c.selected}
+                    onCheckedChange={() => toggleCategorySelected(c.id)}
+                    className="data-[state=checked]:bg-orange-600 data-[state=checked]:border-orange-600 border-stone-400"
+                  />
+                  <span className="w-3 h-3 rounded-full shrink-0" style={{ background: c.color }} />
+                  <span className="font-display font-semibold text-stone-900 text-sm flex-1 truncate">
+                    {c.name}
+                  </span>
+                  <Badge
+                    variant={c.selected && c.weight > 0 ? "default" : "outline"}
+                    className={
+                      c.selected && c.weight > 0
+                        ? "bg-orange-600 hover:bg-orange-600 rounded-full text-[10px]"
+                        : "rounded-full text-[10px] border-stone-300 text-stone-500"
+                    }
+                    data-testid={`category-weight-${c.id}`}
+                  >
+                    peso {c.weight}
+                  </Badge>
                 </div>
-                <div className="grid grid-cols-2 gap-3 mt-3">
-                  <div>
-                    <Label className="text-[10px] uppercase tracking-wider text-stone-500">Peso</Label>
-                    <Slider
-                      data-testid={`category-weight-slider-${c.id}`}
-                      value={[c.weight]}
-                      min={0}
-                      max={10}
-                      step={0.5}
-                      onValueChange={(v) => updateCategory(c.id, "weight", v[0])}
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-[10px] uppercase tracking-wider text-stone-500">Duración (min)</Label>
+                <div className="flex items-center justify-between mt-2 pl-7">
+                  <Label className="text-[10px] uppercase tracking-wider text-stone-500">
+                    Duración estimada
+                  </Label>
+                  <div className="flex items-center gap-1">
                     <Input
                       data-testid={`category-duration-input-${c.id}`}
                       type="number"
                       value={c.duration_min}
-                      onChange={(e) => updateCategory(c.id, "duration_min", Number(e.target.value) || 0)}
-                      className="h-8 text-sm rounded-md"
+                      onChange={(e) => updateCategoryDuration(c.id, Number(e.target.value) || 0)}
+                      className="h-7 w-16 text-xs rounded-md text-right"
                     />
+                    <span className="text-xs text-stone-500">min</span>
                   </div>
                 </div>
               </div>
             ))}
           </div>
+
+          {unselectedCount === 0 && (
+            <p className="text-[11px] text-stone-500 italic">
+              Sin preferencias activas — el algoritmo busca encajar el mayor número de paradas en el día.
+            </p>
+          )}
         </section>
 
         {/* POINTS LIST */}
@@ -240,6 +263,9 @@ export default function LeftPanel({
                                   <MapPin size={10} />
                                   {p.lat.toFixed(4)}, {p.lng.toFixed(4)}
                                 </div>
+                                <div className="text-[10px] uppercase tracking-wider text-stone-400 mt-1">
+                                  {categories.find((c) => c.id === p.category_id)?.name || p.category_id}
+                                </div>
                               </div>
                               <button
                                 data-testid={`remove-point-${p.id}`}
@@ -249,29 +275,6 @@ export default function LeftPanel({
                               >
                                 <Trash2 size={14} />
                               </button>
-                            </div>
-                            <div className="mt-2">
-                              <Select
-                                value={p.category_id}
-                                onValueChange={(v) => updatePoint(p.id, "category_id", v)}
-                              >
-                                <SelectTrigger
-                                  data-testid={`point-category-select-${p.id}`}
-                                  className="h-8 text-xs rounded-md"
-                                >
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {categories.map((c) => (
-                                    <SelectItem key={c.id} value={c.id} className="text-sm">
-                                      <span className="flex items-center gap-2">
-                                        <span className="w-2 h-2 rounded-full" style={{ background: c.color }} />
-                                        {c.name}
-                                      </span>
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
                             </div>
                           </div>
                         ))}

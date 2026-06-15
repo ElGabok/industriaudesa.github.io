@@ -7,6 +7,7 @@ import re
 import math
 import logging
 import uuid
+import unicodedata
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import List, Optional, Dict, Any
@@ -36,34 +37,42 @@ logger = logging.getLogger(__name__)
 # DEFAULT CATEGORIES (Spanish UI)
 # ============================================================
 DEFAULT_CATEGORIES: List[Dict[str, Any]] = [
-    {"id": "museo",       "name": "Museo",       "weight": 5, "duration_min": 90, "color": "#b45309"},
-    {"id": "monumento",   "name": "Monumento",   "weight": 4, "duration_min": 30, "color": "#92400e"},
-    {"id": "atraccion",   "name": "Atracción",   "weight": 4, "duration_min": 60, "color": "#c2410c"},
-    {"id": "parque",      "name": "Parque",      "weight": 3, "duration_min": 60, "color": "#059669"},
-    {"id": "restaurante", "name": "Restaurante", "weight": 3, "duration_min": 60, "color": "#dc2626"},
-    {"id": "compras",     "name": "Compras",     "weight": 2, "duration_min": 45, "color": "#7c3aed"},
-    {"id": "otro",        "name": "Otro",        "weight": 1, "duration_min": 30, "color": "#57534e"},
+    {"id": "museos",             "name": "MUSEOS",             "weight": 0, "duration_min": 120, "color": "#b45309"},
+    {"id": "galerias",           "name": "GALERÍAS",           "weight": 0, "duration_min": 60,  "color": "#92400e"},
+    {"id": "fundaciones",        "name": "FUNDACIONES",        "weight": 0, "duration_min": 45,  "color": "#a16207"},
+    {"id": "teatro",             "name": "TEATRO",             "weight": 0, "duration_min": 120, "color": "#9333ea"},
+    {"id": "gastronomicos",      "name": "GASTRONÓMICOS",      "weight": 0, "duration_min": 75,  "color": "#dc2626"},
+    {"id": "deportes",           "name": "DEPORTES",           "weight": 0, "duration_min": 60,  "color": "#0891b2"},
+    {"id": "centros_culturales", "name": "CENTROS CULTURALES", "weight": 0, "duration_min": 30,  "color": "#c2410c"},
+    {"id": "librerias",          "name": "LIBRERÍAS",          "weight": 0, "duration_min": 30,  "color": "#65a30d"},
+    {"id": "cine",               "name": "CINE",               "weight": 0, "duration_min": 135, "color": "#7c3aed"},
+    {"id": "paseo",              "name": "PASEO",              "weight": 0, "duration_min": 15,  "color": "#059669"},
+    {"id": "otros",              "name": "OTROS",              "weight": 0, "duration_min": 30,  "color": "#57534e"},
 ]
 
-CATEGORY_KEYWORDS = {
-    "museo": ["museo", "museum"],
-    "restaurante": ["restaurante", "restaurant", "café", "cafe", "bar", "taberna", "bistro", "comida"],
-    "parque": ["parque", "park", "jardin", "jardín", "garden", "plaza"],
-    "monumento": ["monumento", "monument", "catedral", "iglesia", "church", "basilica", "basílica", "estatua", "torre"],
-    "compras": ["mercado", "market", "tienda", "shop", "mall", "compras", "boutique"],
-    "atraccion": ["mirador", "viewpoint", "castillo", "palacio", "fortaleza", "puente", "acuario", "zoológico", "zoo"],
-}
+
+def _normalize(s: str) -> str:
+    s = unicodedata.normalize("NFKD", s or "").encode("ascii", "ignore").decode("ascii")
+    s = s.lower().strip()
+    s = re.sub(r"\s+", "_", s)
+    return s
 
 
-def guess_category(name: str) -> str:
-    if not name:
-        return "otro"
-    lower = name.lower()
-    for cat_id, kws in CATEGORY_KEYWORDS.items():
-        for kw in kws:
-            if kw in lower:
-                return cat_id
-    return "atraccion"
+CATEGORY_BY_NORM_NAME = {_normalize(c["name"]): c["id"] for c in DEFAULT_CATEGORIES}
+
+
+def category_from_layer(folder_name: str) -> str:
+    """Match a KML folder/layer name to one of our category IDs."""
+    if not folder_name:
+        return "otros"
+    norm = _normalize(folder_name)
+    if norm in CATEGORY_BY_NORM_NAME:
+        return CATEGORY_BY_NORM_NAME[norm]
+    # heuristic: substring match
+    for known_norm, cat_id in CATEGORY_BY_NORM_NAME.items():
+        if known_norm and known_norm in norm:
+            return cat_id
+    return "otros"
 
 
 # ============================================================
@@ -168,45 +177,65 @@ def extract_map_id(url: str) -> Optional[str]:
     return None
 
 
-def parse_kml(kml_text: str) -> List[Point]:
-    """Parse a KML document and extract placemarks with point geometry."""
-    points: List[Point] = []
+def _parse_placemark(pm, category_id: str) -> Optional[Point]:
+    pt = pm.find("Point")
+    if pt is None:
+        return None
+    coord_el = pt.find("coordinates")
+    if coord_el is None or coord_el.text is None:
+        return None
+    coords_text = coord_el.text.strip()
     try:
-        # Strip namespace to make parsing simpler
+        parts = coords_text.split(",")
+        lng = float(parts[0])
+        lat = float(parts[1])
+    except (ValueError, IndexError):
+        return None
+    name_el = pm.find("name")
+    desc_el = pm.find("description")
+    name = (name_el.text or "Sin nombre").strip() if name_el is not None and name_el.text else "Sin nombre"
+    desc = (desc_el.text or "").strip() if desc_el is not None and desc_el.text else ""
+    desc = re.sub(r"<[^>]+>", " ", desc)
+    desc = re.sub(r"\s+", " ", desc).strip()[:300]
+    return Point(
+        name=name,
+        description=desc,
+        lat=lat,
+        lng=lng,
+        category_id=category_id,
+    )
+
+
+def parse_kml(kml_text: str) -> List[Point]:
+    """Parse a KML document. Categories are derived from the Folder/Layer the placemark lives in."""
+    try:
         kml_text = re.sub(r'\sxmlns="[^"]+"', '', kml_text, count=1)
         root = ET.fromstring(kml_text)
     except ET.ParseError as e:
         raise HTTPException(status_code=400, detail=f"KML inválido: {e}")
 
+    points: List[Point] = []
+    seen_ids = set()
+
+    # Walk all folders and tag placemarks with that folder's category.
+    for folder in root.iter("Folder"):
+        folder_name_el = folder.find("name")
+        folder_name = (folder_name_el.text or "").strip() if folder_name_el is not None and folder_name_el.text else ""
+        cat_id = category_from_layer(folder_name)
+        for pm in folder.findall("Placemark"):
+            p = _parse_placemark(pm, cat_id)
+            if p:
+                points.append(p)
+                seen_ids.add(id(pm))
+
+    # Handle placemarks not inside any Folder
     for pm in root.iter("Placemark"):
-        name_el = pm.find("name")
-        desc_el = pm.find("description")
-        coord_el = None
-        # direct <Point><coordinates>
-        pt = pm.find("Point")
-        if pt is not None:
-            coord_el = pt.find("coordinates")
-        if coord_el is None or coord_el.text is None:
+        if id(pm) in seen_ids:
             continue
-        coords_text = coord_el.text.strip()
-        try:
-            parts = coords_text.split(",")
-            lng = float(parts[0])
-            lat = float(parts[1])
-        except (ValueError, IndexError):
-            continue
-        name = (name_el.text or "Sin nombre").strip() if name_el is not None else "Sin nombre"
-        desc = (desc_el.text or "").strip() if desc_el is not None and desc_el.text else ""
-        # strip HTML tags from description
-        desc = re.sub(r"<[^>]+>", " ", desc)
-        desc = re.sub(r"\s+", " ", desc).strip()[:300]
-        points.append(Point(
-            name=name,
-            description=desc,
-            lat=lat,
-            lng=lng,
-            category_id=guess_category(name),
-        ))
+        p = _parse_placemark(pm, "otros")
+        if p:
+            points.append(p)
+
     return points
 
 
@@ -268,7 +297,8 @@ def optimize_route(req: OptimizeRequest) -> OptimizeResponse:
             if time_used + travel_min + visit_min + extra_back > budget_min:
                 continue
             w = weight_of(p)
-            score = w / max(0.5, (travel_min + visit_min))
+            # Add a +1 base so weight-0 points are still selectable when no preferences are set.
+            score = (w + 1.0) / max(0.5, (travel_min + visit_min))
             if score > best_score:
                 best_score = score
                 best = p
