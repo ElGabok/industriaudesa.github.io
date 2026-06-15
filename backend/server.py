@@ -1,72 +1,452 @@
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI, APIRouter, HTTPException
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
+import re
+import math
 import logging
-from pathlib import Path
-from pydantic import BaseModel, Field, ConfigDict
-from typing import List
 import uuid
+import xml.etree.ElementTree as ET
+from pathlib import Path
+from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
+
+import httpx
+from fastapi import Body
+from pydantic import BaseModel, Field, ConfigDict
 
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# MongoDB connection
+# Mongo
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
-# Create the main app without a prefix
-app = FastAPI()
-
-# Create a router with the /api prefix
+app = FastAPI(title="Rutas eficientes - Google My Maps")
 api_router = APIRouter(prefix="/api")
 
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
-# Define Models
-class StatusCheck(BaseModel):
-    model_config = ConfigDict(extra="ignore")  # Ignore MongoDB's _id field
-    
+
+# ============================================================
+# DEFAULT CATEGORIES (Spanish UI)
+# ============================================================
+DEFAULT_CATEGORIES: List[Dict[str, Any]] = [
+    {"id": "museo",       "name": "Museo",       "weight": 5, "duration_min": 90, "color": "#b45309"},
+    {"id": "monumento",   "name": "Monumento",   "weight": 4, "duration_min": 30, "color": "#92400e"},
+    {"id": "atraccion",   "name": "Atracción",   "weight": 4, "duration_min": 60, "color": "#c2410c"},
+    {"id": "parque",      "name": "Parque",      "weight": 3, "duration_min": 60, "color": "#059669"},
+    {"id": "restaurante", "name": "Restaurante", "weight": 3, "duration_min": 60, "color": "#dc2626"},
+    {"id": "compras",     "name": "Compras",     "weight": 2, "duration_min": 45, "color": "#7c3aed"},
+    {"id": "otro",        "name": "Otro",        "weight": 1, "duration_min": 30, "color": "#57534e"},
+]
+
+CATEGORY_KEYWORDS = {
+    "museo": ["museo", "museum"],
+    "restaurante": ["restaurante", "restaurant", "café", "cafe", "bar", "taberna", "bistro", "comida"],
+    "parque": ["parque", "park", "jardin", "jardín", "garden", "plaza"],
+    "monumento": ["monumento", "monument", "catedral", "iglesia", "church", "basilica", "basílica", "estatua", "torre"],
+    "compras": ["mercado", "market", "tienda", "shop", "mall", "compras", "boutique"],
+    "atraccion": ["mirador", "viewpoint", "castillo", "palacio", "fortaleza", "puente", "acuario", "zoológico", "zoo"],
+}
+
+
+def guess_category(name: str) -> str:
+    if not name:
+        return "otro"
+    lower = name.lower()
+    for cat_id, kws in CATEGORY_KEYWORDS.items():
+        for kw in kws:
+            if kw in lower:
+                return cat_id
+    return "atraccion"
+
+
+# ============================================================
+# MODELS
+# ============================================================
+class Category(BaseModel):
+    id: str
+    name: str
+    weight: float
+    duration_min: int
+    color: str
+
+
+class Point(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    client_name: str
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    name: str
+    description: Optional[str] = ""
+    lat: float
+    lng: float
+    category_id: str = "otro"
+    custom_duration_min: Optional[int] = None  # override category default
 
-class StatusCheckCreate(BaseModel):
-    client_name: str
 
-# Add your routes to the router instead of directly to app
+class ImportKmlRequest(BaseModel):
+    url: str
+
+
+class ImportKmlResponse(BaseModel):
+    map_id: Optional[str]
+    embed_url: Optional[str]
+    points: List[Point]
+
+
+class OptimizeRequest(BaseModel):
+    points: List[Point]
+    categories: List[Category]
+    total_hours: float = 8.0
+    speed_kmh: float = 5.0  # walking
+    start_lat: Optional[float] = None  # if None, use first point
+    start_lng: Optional[float] = None
+    return_to_start: bool = False
+
+
+class ItineraryStop(BaseModel):
+    point: Point
+    arrival_min: float
+    depart_min: float
+    travel_min_from_prev: float
+    distance_km_from_prev: float
+    weight: float
+
+
+class OptimizeResponse(BaseModel):
+    stops: List[ItineraryStop]
+    total_time_min: float
+    total_distance_km: float
+    total_weight: float
+    skipped: List[Point]
+
+
+class SaveItineraryRequest(BaseModel):
+    name: str
+    map_url: Optional[str] = None
+    embed_url: Optional[str] = None
+    points: List[Point]
+    categories: List[Category]
+    settings: Dict[str, Any]
+    result: OptimizeResponse
+
+
+class Itinerary(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    map_url: Optional[str] = None
+    embed_url: Optional[str] = None
+    points: List[Point]
+    categories: List[Category]
+    settings: Dict[str, Any]
+    result: OptimizeResponse
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+# ============================================================
+# KML PARSING HELPERS
+# ============================================================
+def extract_map_id(url: str) -> Optional[str]:
+    """Extract a Google My Maps `mid` parameter from any common URL shape."""
+    if not url:
+        return None
+    # mid as query param
+    m = re.search(r"[?&]mid=([^&#]+)", url)
+    if m:
+        return m.group(1)
+    # path like /maps/d/<something>/<mid>
+    m = re.search(r"/maps/d/[^/]+/([A-Za-z0-9_\-]+)", url)
+    if m:
+        return m.group(1)
+    # Maybe user pasted the id directly
+    if re.fullmatch(r"[A-Za-z0-9_\-]{20,}", url.strip()):
+        return url.strip()
+    return None
+
+
+def parse_kml(kml_text: str) -> List[Point]:
+    """Parse a KML document and extract placemarks with point geometry."""
+    points: List[Point] = []
+    try:
+        # Strip namespace to make parsing simpler
+        kml_text = re.sub(r'\sxmlns="[^"]+"', '', kml_text, count=1)
+        root = ET.fromstring(kml_text)
+    except ET.ParseError as e:
+        raise HTTPException(status_code=400, detail=f"KML inválido: {e}")
+
+    for pm in root.iter("Placemark"):
+        name_el = pm.find("name")
+        desc_el = pm.find("description")
+        coord_el = None
+        # direct <Point><coordinates>
+        pt = pm.find("Point")
+        if pt is not None:
+            coord_el = pt.find("coordinates")
+        if coord_el is None or coord_el.text is None:
+            continue
+        coords_text = coord_el.text.strip()
+        try:
+            parts = coords_text.split(",")
+            lng = float(parts[0])
+            lat = float(parts[1])
+        except (ValueError, IndexError):
+            continue
+        name = (name_el.text or "Sin nombre").strip() if name_el is not None else "Sin nombre"
+        desc = (desc_el.text or "").strip() if desc_el is not None and desc_el.text else ""
+        # strip HTML tags from description
+        desc = re.sub(r"<[^>]+>", " ", desc)
+        desc = re.sub(r"\s+", " ", desc).strip()[:300]
+        points.append(Point(
+            name=name,
+            description=desc,
+            lat=lat,
+            lng=lng,
+            category_id=guess_category(name),
+        ))
+    return points
+
+
+# ============================================================
+# DISTANCE + OPTIMIZATION
+# ============================================================
+def haversine_km(a_lat: float, a_lng: float, b_lat: float, b_lng: float) -> float:
+    R = 6371.0
+    p1 = math.radians(a_lat)
+    p2 = math.radians(b_lat)
+    dp = math.radians(b_lat - a_lat)
+    dl = math.radians(b_lng - a_lng)
+    h = math.sin(dp/2)**2 + math.cos(p1)*math.cos(p2)*math.sin(dl/2)**2
+    return 2 * R * math.asin(math.sqrt(h))
+
+
+def optimize_route(req: OptimizeRequest) -> OptimizeResponse:
+    cat_map = {c.id: c for c in req.categories}
+
+    def duration_of(p: Point) -> int:
+        if p.custom_duration_min is not None:
+            return p.custom_duration_min
+        c = cat_map.get(p.category_id)
+        return c.duration_min if c else 30
+
+    def weight_of(p: Point) -> float:
+        c = cat_map.get(p.category_id)
+        return float(c.weight) if c else 1.0
+
+    if not req.points:
+        return OptimizeResponse(stops=[], total_time_min=0, total_distance_km=0, total_weight=0, skipped=[])
+
+    start_lat = req.start_lat if req.start_lat is not None else req.points[0].lat
+    start_lng = req.start_lng if req.start_lng is not None else req.points[0].lng
+
+    budget_min = req.total_hours * 60.0
+    speed_kmh = max(0.1, req.speed_kmh)
+
+    available = list(req.points)
+    stops: List[ItineraryStop] = []
+    cur_lat, cur_lng = start_lat, start_lng
+    time_used = 0.0
+    total_dist = 0.0
+
+    # Greedy value-density insertion
+    while available:
+        best = None
+        best_score = -math.inf
+        best_travel_min = 0.0
+        best_dist = 0.0
+        for p in available:
+            dist = haversine_km(cur_lat, cur_lng, p.lat, p.lng)
+            travel_min = (dist / speed_kmh) * 60.0
+            visit_min = duration_of(p)
+            extra_back = 0.0
+            if req.return_to_start:
+                dist_back = haversine_km(p.lat, p.lng, start_lat, start_lng)
+                extra_back = (dist_back / speed_kmh) * 60.0
+            if time_used + travel_min + visit_min + extra_back > budget_min:
+                continue
+            w = weight_of(p)
+            score = w / max(0.5, (travel_min + visit_min))
+            if score > best_score:
+                best_score = score
+                best = p
+                best_travel_min = travel_min
+                best_dist = dist
+        if best is None:
+            break
+        visit_min = duration_of(best)
+        arrival = time_used + best_travel_min
+        depart = arrival + visit_min
+        stops.append(ItineraryStop(
+            point=best,
+            arrival_min=arrival,
+            depart_min=depart,
+            travel_min_from_prev=best_travel_min,
+            distance_km_from_prev=best_dist,
+            weight=weight_of(best),
+        ))
+        time_used = depart
+        total_dist += best_dist
+        cur_lat, cur_lng = best.lat, best.lng
+        available = [a for a in available if a.id != best.id]
+
+    # 2-opt local improvement on travel (keep weights identical)
+    def total_travel_min(seq: List[ItineraryStop]) -> float:
+        s_lat, s_lng = start_lat, start_lng
+        total = 0.0
+        for st in seq:
+            d = haversine_km(s_lat, s_lng, st.point.lat, st.point.lng)
+            total += (d / speed_kmh) * 60.0
+            s_lat, s_lng = st.point.lat, st.point.lng
+        if req.return_to_start:
+            d = haversine_km(s_lat, s_lng, start_lat, start_lng)
+            total += (d / speed_kmh) * 60.0
+        return total
+
+    improved = True
+    iter_guard = 0
+    while improved and iter_guard < 30:
+        improved = False
+        iter_guard += 1
+        for i in range(len(stops) - 1):
+            for j in range(i + 1, len(stops)):
+                new_seq = stops[:i] + stops[i:j+1][::-1] + stops[j+1:]
+                if total_travel_min(new_seq) + 0.01 < total_travel_min(stops):
+                    stops = new_seq
+                    improved = True
+
+    # Recompute arrival/depart after reordering
+    s_lat, s_lng = start_lat, start_lng
+    t = 0.0
+    total_dist = 0.0
+    final_stops: List[ItineraryStop] = []
+    for st in stops:
+        d = haversine_km(s_lat, s_lng, st.point.lat, st.point.lng)
+        tm = (d / speed_kmh) * 60.0
+        arrival = t + tm
+        visit = duration_of(st.point)
+        depart = arrival + visit
+        final_stops.append(ItineraryStop(
+            point=st.point,
+            arrival_min=arrival,
+            depart_min=depart,
+            travel_min_from_prev=tm,
+            distance_km_from_prev=d,
+            weight=weight_of(st.point),
+        ))
+        total_dist += d
+        t = depart
+        s_lat, s_lng = st.point.lat, st.point.lng
+
+    if req.return_to_start and final_stops:
+        d_back = haversine_km(s_lat, s_lng, start_lat, start_lng)
+        total_dist += d_back
+        t += (d_back / speed_kmh) * 60.0
+
+    chosen_ids = {s.point.id for s in final_stops}
+    skipped = [p for p in req.points if p.id not in chosen_ids]
+    total_weight = sum(s.weight for s in final_stops)
+
+    return OptimizeResponse(
+        stops=final_stops,
+        total_time_min=round(t, 2),
+        total_distance_km=round(total_dist, 3),
+        total_weight=round(total_weight, 2),
+        skipped=skipped,
+    )
+
+
+# ============================================================
+# ROUTES
+# ============================================================
 @api_router.get("/")
 async def root():
-    return {"message": "Hello World"}
+    return {"message": "Rutas eficientes - Google My Maps API"}
 
-@api_router.post("/status", response_model=StatusCheck)
-async def create_status_check(input: StatusCheckCreate):
-    status_dict = input.model_dump()
-    status_obj = StatusCheck(**status_dict)
-    
-    # Convert to dict and serialize datetime to ISO string for MongoDB
-    doc = status_obj.model_dump()
-    doc['timestamp'] = doc['timestamp'].isoformat()
-    
-    _ = await db.status_checks.insert_one(doc)
-    return status_obj
 
-@api_router.get("/status", response_model=List[StatusCheck])
-async def get_status_checks():
-    # Exclude MongoDB's _id field from the query results
-    status_checks = await db.status_checks.find({}, {"_id": 0}).to_list(1000)
-    
-    # Convert ISO string timestamps back to datetime objects
-    for check in status_checks:
-        if isinstance(check['timestamp'], str):
-            check['timestamp'] = datetime.fromisoformat(check['timestamp'])
-    
-    return status_checks
+@api_router.get("/categories", response_model=List[Category])
+async def get_default_categories():
+    return [Category(**c) for c in DEFAULT_CATEGORIES]
 
-# Include the router in the main app
+
+@api_router.post("/import-kml", response_model=ImportKmlResponse)
+async def import_kml(req: ImportKmlRequest):
+    map_id = extract_map_id(req.url)
+    if not map_id:
+        raise HTTPException(status_code=400, detail="No se pudo extraer el ID del mapa. Comparte un My Map público y pega su enlace.")
+    kml_url = f"https://www.google.com/maps/d/kml?mid={map_id}&forcekml=1"
+    embed_url = f"https://www.google.com/maps/d/embed?mid={map_id}"
+    try:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=20.0) as http:
+            r = await http.get(kml_url)
+            if r.status_code != 200 or not r.text:
+                raise HTTPException(status_code=400, detail="No se pudo descargar el KML. Asegúrate que el mapa sea público.")
+            kml_text = r.text
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=400, detail=f"Error al descargar el KML: {e}")
+    points = parse_kml(kml_text)
+    if not points:
+        raise HTTPException(status_code=400, detail="No se encontraron puntos en este mapa. Asegúrate que tenga marcadores y sea público.")
+    return ImportKmlResponse(map_id=map_id, embed_url=embed_url, points=points)
+
+
+@api_router.post("/optimize-route", response_model=OptimizeResponse)
+async def optimize_route_endpoint(req: OptimizeRequest):
+    return optimize_route(req)
+
+
+@api_router.post("/itineraries", response_model=Itinerary)
+async def save_itinerary(req: SaveItineraryRequest):
+    it = Itinerary(
+        name=req.name,
+        map_url=req.map_url,
+        embed_url=req.embed_url,
+        points=req.points,
+        categories=req.categories,
+        settings=req.settings,
+        result=req.result,
+    )
+    doc = it.model_dump()
+    doc["created_at"] = doc["created_at"].isoformat()
+    await db.itineraries.insert_one(doc)
+    return it
+
+
+@api_router.get("/itineraries", response_model=List[Itinerary])
+async def list_itineraries():
+    docs = await db.itineraries.find({}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    for d in docs:
+        if isinstance(d.get("created_at"), str):
+            try:
+                d["created_at"] = datetime.fromisoformat(d["created_at"])
+            except ValueError:
+                d["created_at"] = datetime.now(timezone.utc)
+    return docs
+
+
+@api_router.get("/itineraries/{itinerary_id}", response_model=Itinerary)
+async def get_itinerary(itinerary_id: str):
+    doc = await db.itineraries.find_one({"id": itinerary_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Itinerario no encontrado")
+    if isinstance(doc.get("created_at"), str):
+        try:
+            doc["created_at"] = datetime.fromisoformat(doc["created_at"])
+        except ValueError:
+            doc["created_at"] = datetime.now(timezone.utc)
+    return doc
+
+
+@api_router.delete("/itineraries/{itinerary_id}")
+async def delete_itinerary(itinerary_id: str):
+    res = await db.itineraries.delete_one({"id": itinerary_id})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Itinerario no encontrado")
+    return {"deleted": True}
+
+
 app.include_router(api_router)
 
 app.add_middleware(
@@ -77,12 +457,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
