@@ -1,158 +1,802 @@
 <!doctype html>
-<html lang="en">
-    <head>
-        <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <meta name="theme-color" content="#000000" />
-        <meta name="description" content="A product of emergent.sh" />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@600&display=swap" rel="stylesheet" />
-        <!--
-        manifest.json provides metadata used when your web app is installed on a
-        user's mobile device or desktop. See https://developers.google.com/web/fundamentals/web-app-manifest/
-        -->
-        <!--
-        Notice the use of %PUBLIC_URL% in the tags above.
-        It will be replaced with the URL of the `public` folder during the build.
-        Only files inside the `public` folder can be referenced from the HTML.
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Rutas Eficientes · Google My Maps</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"IBM Plex Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+            display: ['"Work Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: 'IBM Plex Sans', system-ui, sans-serif;
+      background: #fafaf9;
+      color: #1c1917;
+      -webkit-font-smoothing: antialiased;
+    }
+    h1, h2, h3, h4, .font-display { font-family: 'Work Sans', sans-serif; letter-spacing: -0.01em; }
+    .scrollbar-thin::-webkit-scrollbar { width: 6px; }
+    .scrollbar-thin::-webkit-scrollbar-thumb { background: #d6d3d1; border-radius: 3px; }
+    .stop-number {
+      width: 26px; height: 26px; border-radius: 9999px;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: #ea580c; color: #fff;
+      font-family: 'Work Sans', sans-serif; font-weight: 700; font-size: 0.8rem;
+      flex-shrink: 0;
+    }
+    .timeline-connector { width: 2px; background: #e7e5e4; margin-left: 12px; flex: 1; min-height: 8px; }
+    .slider {
+      -webkit-appearance: none; appearance: none;
+      width: 100%; height: 4px; background: #e7e5e4; border-radius: 9999px; outline: none;
+    }
+    .slider::-webkit-slider-thumb {
+      -webkit-appearance: none; appearance: none;
+      width: 16px; height: 16px; border-radius: 9999px; background: #ea580c; cursor: pointer;
+      border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+    }
+    .slider::-moz-range-thumb {
+      width: 16px; height: 16px; border-radius: 9999px; background: #ea580c; cursor: pointer;
+      border: 2px solid #fff;
+    }
+    /* Toast */
+    #toast {
+      position: fixed; top: 16px; right: 16px; z-index: 9999;
+      display: flex; flex-direction: column; gap: 8px;
+      pointer-events: none;
+    }
+    #toast > div {
+      pointer-events: auto;
+      background: #fff; border: 1px solid #e7e5e4; border-left: 4px solid #059669;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      padding: 10px 14px; border-radius: 8px;
+      font-size: 13px; max-width: 360px;
+      animation: slidein 0.18s ease-out;
+    }
+    #toast .err { border-left-color: #dc2626; }
+    @keyframes slidein { from { transform: translateX(20px); opacity: 0; } to { transform: none; opacity: 1; } }
+  </style>
+</head>
+<body>
+  <div id="toast"></div>
 
-        Unlike "/favicon.ico" or "favicon.ico", "%PUBLIC_URL%/favicon.ico" will
-        work correctly both with client-side routing and a non-root public URL.
-        Learn how to configure a non-root public URL by running `npm run build`.
-        -->
-        <title>Emergent | Fullstack App</title>
-        <script>window.addEventListener("error",function(e){if(e.error instanceof DOMException&&e.error.name==="DataCloneError"&&e.message&&e.message.includes("PerformanceServerTiming")){e.stopImmediatePropagation();e.preventDefault()}},true);</script>
-        <script src="https://assets.emergent.sh/scripts/emergent-main.js"></script>
-    </head>
-    <body>
-        <noscript>You need to enable JavaScript to run this app.</noscript>
-        <div id="root"></div>
-        <!--
-      This HTML file is a template.
-      If you open it directly in the browser, you will see an empty page.
+  <div class="h-screen w-full flex flex-col bg-stone-50">
+    <!-- Header -->
+    <header class="flex items-center justify-between px-6 py-3 border-b border-stone-200 bg-white shrink-0">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-lg bg-orange-600 text-white flex items-center justify-center font-bold">RE</div>
+        <div>
+          <h1 class="font-display text-base font-bold text-stone-900 leading-none">Rutas Eficientes</h1>
+          <p class="text-[11px] text-stone-500 mt-1 tracking-wide">Planificador · Google My Maps</p>
+        </div>
+      </div>
+      <div class="hidden md:flex items-center gap-6 text-[11px] uppercase tracking-[0.18em] text-stone-500 font-semibold">
+        <span><span id="hdr-points">0</span> puntos</span>
+        <span><span id="hdr-stops">0</span> paradas</span>
+        <span>Valor <span id="hdr-weight">0</span></span>
+      </div>
+    </header>
 
-      You can add webfonts, meta tags, or analytics to this file.
-      The build step will place the bundled scripts into the <body> tag.
+    <div class="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0">
+      <!-- LEFT PANEL -->
+      <aside class="w-full md:w-[300px] lg:w-[320px] shrink-0 h-full flex flex-col border-r border-stone-200 bg-white min-h-0">
+        <div class="flex-1 overflow-y-auto scrollbar-thin">
+          <div class="p-5 flex flex-col gap-5">
+            <!-- Settings -->
+            <section class="flex flex-col gap-3">
+              <label class="uppercase text-[11px] font-semibold tracking-[0.2em] text-stone-500">Configuración del día</label>
 
-      To begin the development, run `npm start` or `yarn start`.
-      To create a production bundle, use `npm run build` or `yarn build`.
-    -->
-        <a
-            id="emergent-badge"
-            target="_blank"
-            href="https://app.emergent.sh/?utm_source=emergent-badge"
-            style="
-                display: inline-flex !important;
-                box-sizing: border-box;
-                width: 178px;
-                height: 40px;
-                padding: 8px 12px 8px 12px;
-                align-items: center !important;
-                gap: 8px;
-                border-radius: 50px !important;
-                background: #000 !important;
-                position: fixed !important;
-                bottom: 16px;
-                right: 16px;
-                text-decoration: none;
-                font-family: -apple-system, BlinkMacSystemFont,
-                    &quot;Segoe UI&quot;, Roboto, Oxygen, Ubuntu, Cantarell,
-                    &quot;Open Sans&quot;, &quot;Helvetica Neue&quot;,
-                    sans-serif !important;
-                font-size: 12px !important;
-                z-index: 9999 !important;
-            "
-        >
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path d="M15.5702 8.13142C15.7729 8.0412 16.0007 8.18878 15.9892 8.4103C15.8374 11.3192 14.0965 14.0405 11.2531 15.3065C8.40964 16.5725 5.2224 16.0453 2.95912 14.2117C2.78676 14.072 2.82955 13.804 3.03219 13.7137L4.95677 12.8568C5.04866 12.8159 5.15446 12.823 5.24204 12.8725C6.73377 13.7153 8.59176 13.8649 10.2772 13.1145C11.9626 12.3641 13.0947 10.8833 13.4665 9.21075C13.4883 9.11256 13.5539 9.02918 13.6457 8.98827L15.5702 8.13142Z" fill="white"/>
-                <path fill-rule="evenodd" clip-rule="evenodd" d="M15.3066 4.74698L15.5067 5.19653C15.5759 5.35178 15.5061 5.53366 15.3508 5.60278L1.29992 11.8586C1.14467 11.9278 0.962794 11.8579 0.893675 11.7027L0.701732 11.2716L0.693457 11.2531C-1.10317 7.21778 0.711626 2.49007 4.74692 0.693443C8.78221 -1.10318 13.51 0.711693 15.3066 4.74698ZM2.82356 8.55367C2.63552 8.63739 2.41991 8.51617 2.40853 8.31065C2.28373 6.05724 3.53858 3.85787 5.72286 2.88536C7.90715 1.91286 10.3813 2.45199 11.9724 4.05256C12.1175 4.19854 12.0633 4.43988 11.8753 4.5236L2.82356 8.55367Z" fill="white"/>
-            </svg>
-            <p
-                style="
-                    color: #FFF !important;
-                    font-family: 'Inter', sans-serif !important;
-                    font-size: 13px !important;
-                    font-style: normal !important;
-                    font-weight: 600 !important;
-                    line-height: 20px !important;
-                    margin: 0 !important;
-                    white-space: nowrap !important;
-                "
-            >
-                Made with Emergent
-            </p>
-        </a>
-        <script>
-            !(function (t, e) {
-                var o, n, p, r;
-                e.__SV ||
-                    ((window.posthog = e),
-                    (e._i = []),
-                    (e.init = function (i, s, a) {
-                        function g(t, e) {
-                            var o = e.split(".");
-                            2 == o.length && ((t = t[o[0]]), (e = o[1])),
-                                (t[e] = function () {
-                                    t.push(
-                                        [e].concat(
-                                            Array.prototype.slice.call(
-                                                arguments,
-                                                0,
-                                            ),
-                                        ),
-                                    );
-                                });
-                        }
-                        ((p = t.createElement("script")).type =
-                            "text/javascript"),
-                            (p.crossOrigin = "anonymous"),
-                            (p.async = !0),
-                            (p.src =
-                                s.api_host.replace(
-                                    ".i.posthog.com",
-                                    "-assets.i.posthog.com",
-                                ) + "/static/array.js"),
-                            (r =
-                                t.getElementsByTagName(
-                                    "script",
-                                )[0]).parentNode.insertBefore(p, r);
-                        var u = e;
-                        for (
-                            void 0 !== a ? (u = e[a] = []) : (a = "posthog"),
-                                u.people = u.people || [],
-                                u.toString = function (t) {
-                                    var e = "posthog";
-                                    return (
-                                        "posthog" !== a && (e += "." + a),
-                                        t || (e += " (stub)"),
-                                        e
-                                    );
-                                },
-                                u.people.toString = function () {
-                                    return u.toString(1) + ".people (stub)";
-                                },
-                                o =
-                                    "init me ws ys ps bs capture je Di ks register register_once register_for_session unregister unregister_for_session Ps getFeatureFlag getFeatureFlagPayload isFeatureEnabled reloadFeatureFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSurveysLoaded onSessionId getSurveys getActiveMatchingSurveys renderSurvey canRenderSurvey canRenderSurveyAsync identify setPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException loadToolbar get_property getSessionProperty Es $s createPersonProfile Is opt_in_capturing opt_out_capturing has_opted_in_capturing has_opted_out_capturing clear_opt_in_out_capturing Ss debug xs getPageViewId captureTraceFeedback captureTraceMetric".split(
-                                        " ",
-                                    ),
-                                n = 0;
-                            n < o.length;
-                            n++
-                        )
-                            g(u, o[n]);
-                        e._i.push([i, s, a]);
-                    }),
-                    (e.__SV = 1));
-            })(document, window.posthog || []);
-            posthog.init("phc_xAvL2Iq4tFmANRE7kzbKwaSqp1HJjN7x48s3vr0CMjs", {
-                api_host: "https://us.i.posthog.com",
-                person_profiles: "identified_only", // or 'always' to create profiles for anonymous users as well,
-                session_recording: {
-                    recordCrossOriginIframes: true,
-                    capturePerformance: false,
-                },
-            });
-        </script>
-    </body>
+              <div class="flex flex-col gap-1.5">
+                <div class="flex items-center justify-between">
+                  <span class="text-sm text-stone-700">⏱ Tiempo disponible</span>
+                  <span class="font-display font-semibold text-stone-900 text-sm"><span id="hours-val">8</span> h</span>
+                </div>
+                <input id="hours-slider" type="range" min="1" max="16" step="0.5" value="8" class="slider" />
+              </div>
+
+              <div class="flex flex-col gap-1.5">
+                <div class="flex items-center justify-between">
+                  <span class="text-sm text-stone-700">🚶 Velocidad media</span>
+                  <span class="font-display font-semibold text-stone-900 text-sm"><span id="speed-val">5</span> km/h</span>
+                </div>
+                <input id="speed-slider" type="range" min="2" max="60" step="1" value="5" class="slider" />
+                <div class="flex gap-1.5 mt-1 flex-wrap">
+                  <button class="speed-preset border border-stone-300 rounded-full px-2 py-0.5 text-[10px] hover:bg-stone-50" data-v="5">🚶 A pie 5</button>
+                  <button class="speed-preset border border-stone-300 rounded-full px-2 py-0.5 text-[10px] hover:bg-stone-50" data-v="15">🚲 Bici 15</button>
+                  <button class="speed-preset border border-stone-300 rounded-full px-2 py-0.5 text-[10px] hover:bg-stone-50" data-v="30">🚗 Auto 30</button>
+                </div>
+              </div>
+
+              <label class="flex items-center justify-between bg-stone-50 rounded-lg p-2.5 border border-stone-200 cursor-pointer">
+                <div>
+                  <div class="text-sm text-stone-800">Volver al inicio</div>
+                  <div class="text-[11px] text-stone-500">Cierra el bucle al partida</div>
+                </div>
+                <input id="return-start" type="checkbox" class="w-4 h-4 accent-orange-600" />
+              </label>
+
+              <button id="generate-btn" class="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg h-10 font-semibold text-sm disabled:opacity-50 transition">
+                ✨ <span id="generate-label">Generar ruta óptima</span>
+              </button>
+            </section>
+
+            <div class="h-px bg-stone-200"></div>
+
+            <!-- Categories -->
+            <section class="flex flex-col gap-3">
+              <label class="uppercase text-[11px] font-semibold tracking-[0.2em] text-stone-500">¿Qué te interesa?</label>
+              <p class="text-[11px] text-stone-500 leading-relaxed">
+                Marcá lo que te interese. Las categorías marcadas reciben <strong>+5 por cada categoría desmarcada</strong>.
+                Si dejás todas marcadas, no hay preferencia y se prioriza recorrer el máximo de paradas.
+              </p>
+              <div id="categories-list" class="flex flex-col gap-1.5"></div>
+              <p id="no-pref" class="text-[11px] text-stone-500 italic">
+                Sin preferencias activas — el algoritmo busca encajar el mayor número de paradas.
+              </p>
+            </section>
+
+            <div class="h-px bg-stone-200"></div>
+
+            <!-- Save / Load -->
+            <section class="flex gap-2 pb-2">
+              <button id="save-btn" class="flex-1 border border-stone-300 rounded-lg text-xs py-1.5 hover:bg-stone-50 disabled:opacity-50" disabled>💾 Guardar</button>
+              <button id="load-btn" class="flex-1 border border-stone-300 rounded-lg text-xs py-1.5 hover:bg-stone-50">📂 Cargar</button>
+            </section>
+          </div>
+        </div>
+      </aside>
+
+      <!-- MAP -->
+      <main class="flex-1 min-w-0 h-full flex flex-col bg-stone-50 relative">
+        <div class="flex items-stretch gap-2 px-3 py-2 border-b border-stone-200 bg-white shrink-0">
+          <div class="flex-1 min-w-0 rounded-lg border border-stone-200 bg-white px-3 py-1.5 shadow-sm flex items-center gap-2">
+            <span class="text-stone-500">📍</span>
+            <div class="flex flex-col min-w-0">
+              <span class="uppercase text-[9px] font-semibold tracking-[0.18em] text-stone-500 leading-none">Paradas</span>
+              <span class="font-display text-sm font-bold text-stone-900 leading-tight"><span id="kpi-stops">0</span></span>
+            </div>
+            <span class="ml-auto text-[10px] text-stone-400 whitespace-nowrap">de <span id="kpi-total-points">0</span></span>
+          </div>
+          <div class="flex-1 min-w-0 rounded-lg border border-stone-200 bg-white px-3 py-1.5 shadow-sm flex items-center gap-2">
+            <span class="text-stone-500">⭐</span>
+            <div class="flex flex-col min-w-0">
+              <span class="uppercase text-[9px] font-semibold tracking-[0.18em] text-stone-500 leading-none">Valor</span>
+              <span class="font-display text-sm font-bold text-stone-900 leading-tight"><span id="kpi-weight">0</span></span>
+            </div>
+            <span class="ml-auto text-[10px] text-stone-400 whitespace-nowrap">pesos</span>
+          </div>
+          <div class="flex-1 min-w-0 rounded-lg border border-stone-200 bg-white px-3 py-1.5 shadow-sm flex items-center gap-2">
+            <span class="text-stone-500">↔</span>
+            <div class="flex flex-col min-w-0">
+              <span class="uppercase text-[9px] font-semibold tracking-[0.18em] text-stone-500 leading-none">Distancia</span>
+              <span class="font-display text-sm font-bold text-stone-900 leading-tight"><span id="kpi-distance">0.00 km</span></span>
+            </div>
+            <span class="ml-auto text-[10px] text-stone-400 whitespace-nowrap">a <span id="kpi-speed">5</span> km/h</span>
+          </div>
+          <div class="flex-1 min-w-0 rounded-lg border border-stone-200 bg-white px-3 py-1.5 shadow-sm flex items-center gap-2">
+            <span class="text-stone-500">🕒</span>
+            <div class="flex flex-col min-w-0">
+              <span class="uppercase text-[9px] font-semibold tracking-[0.18em] text-stone-500 leading-none">Duración</span>
+              <span class="font-display text-sm font-bold text-stone-900 leading-tight"><span id="kpi-duration">0 min</span></span>
+            </div>
+            <span class="ml-auto text-[10px] text-stone-400 whitespace-nowrap">de <span id="kpi-total-hours">8</span>h</span>
+          </div>
+        </div>
+
+        <div class="flex-1 relative overflow-hidden min-h-0">
+          <iframe id="mymaps-iframe" src="" title="Google My Maps" class="w-full h-full border-0" loading="eager"></iframe>
+        </div>
+
+        <div id="skipped-banner" class="hidden px-4 py-1.5 bg-amber-50 border-t border-amber-200 text-[11px] text-amber-900 shrink-0"></div>
+      </main>
+
+      <!-- ITINERARY -->
+      <aside class="w-full md:w-[320px] lg:w-[340px] shrink-0 h-full flex flex-col border-l border-stone-200 bg-white min-h-0">
+        <div class="px-5 pt-5 pb-3 border-b border-stone-100 flex items-center justify-between shrink-0">
+          <div>
+            <h2 class="font-display text-base font-bold text-stone-900">Tu itinerario</h2>
+            <p class="text-[10px] text-stone-500 mt-0.5 uppercase tracking-[0.18em] font-semibold">Orden óptimo del día</p>
+          </div>
+          <span id="itin-badge" class="hidden bg-emerald-600 text-white rounded-full px-2 py-0.5 text-[11px] font-semibold">0 paradas</span>
+        </div>
+        <div id="itin-scroll" class="flex-1 overflow-y-auto scrollbar-thin px-5 py-4">
+          <div id="itin-empty" class="mt-10 text-center text-sm text-stone-500">
+            ⓘ Cargando puntos del mapa…
+          </div>
+          <ol id="itin-list" class="hidden flex flex-col"></ol>
+          <div id="itin-skipped" class="hidden mt-3 border-t border-stone-200 pt-3"></div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- ============================================================
+                            JAVASCRIPT
+       ============================================================ -->
+  <script>
+  (function () {
+    'use strict';
+
+    // -------- CONSTANTS -----------------------------------------
+    const MAP_ID = '1HQl3rOxugsFF6tk2yGjLyD9nWxoRPq0';
+    const EMBED_URL = `https://www.google.com/maps/d/embed?mid=${MAP_ID}`;
+    const KML_URL = `https://www.google.com/maps/d/kml?mid=${MAP_ID}&forcekml=1`;
+    // List of CORS proxies tried in order.
+    const PROXIES = [
+      (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+      (u) => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}`, // returns JSON with 'contents'
+      (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+    ];
+
+    const DEFAULT_CATEGORIES = [
+      { id: 'museos',             name: 'MUSEOS',             duration_min: 120, color: '#b45309' },
+      { id: 'galerias',           name: 'GALERÍAS',           duration_min: 60,  color: '#92400e' },
+      { id: 'fundaciones',        name: 'FUNDACIONES',        duration_min: 45,  color: '#a16207' },
+      { id: 'teatro',             name: 'TEATRO',             duration_min: 120, color: '#9333ea' },
+      { id: 'gastronomicos',      name: 'GASTRONÓMICOS',      duration_min: 75,  color: '#dc2626' },
+      { id: 'deportes',           name: 'DEPORTES',           duration_min: 60,  color: '#0891b2' },
+      { id: 'centros_culturales', name: 'CENTROS CULTURALES', duration_min: 30,  color: '#c2410c' },
+      { id: 'librerias',          name: 'LIBRERÍAS',          duration_min: 30,  color: '#65a30d' },
+      { id: 'cine',               name: 'CINE',               duration_min: 135, color: '#7c3aed' },
+      { id: 'paseo',              name: 'PASEO',              duration_min: 15,  color: '#059669' },
+      { id: 'otros',              name: 'OTROS',              duration_min: 30,  color: '#57534e' },
+    ];
+
+    // -------- STATE ---------------------------------------------
+    const state = {
+      categories: DEFAULT_CATEGORIES.map((c) => ({ ...c, selected: c.id !== 'otros', weight: 0 })),
+      points: [],
+      settings: { total_hours: 8, speed_kmh: 5, return_to_start: false },
+      result: null,
+    };
+
+    // -------- HELPERS -------------------------------------------
+    const $ = (sel) => document.querySelector(sel);
+    const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+
+    function toast(msg, type = 'ok') {
+      const t = document.createElement('div');
+      if (type === 'err') t.classList.add('err');
+      t.textContent = msg;
+      $('#toast').appendChild(t);
+      setTimeout(() => t.remove(), 3800);
+    }
+
+    function normalize(s) {
+      return (s || '')
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase().trim().replace(/\s+/g, '_');
+    }
+
+    function haversineKm(a, b) {
+      const R = 6371, toRad = (d) => (d * Math.PI) / 180;
+      const dLat = toRad(b.lat - a.lat);
+      const dLng = toRad(b.lng - a.lng);
+      const h = Math.sin(dLat / 2) ** 2
+        + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+      return 2 * R * Math.asin(Math.sqrt(h));
+    }
+
+    function uid() {
+      return 'p_' + Math.random().toString(36).slice(2, 10);
+    }
+
+    function formatDur(min) {
+      if (min < 1) return '0 min';
+      const h = Math.floor(min / 60);
+      const m = Math.round(min % 60);
+      return h > 0 ? `${h}h ${m}m` : `${m} min`;
+    }
+    function formatTime(min, base = 9) {
+      const total = base * 60 + min;
+      const h = Math.floor(total / 60) % 24;
+      const m = Math.round(total % 60);
+      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    }
+
+    // -------- KML FETCH + PARSE ---------------------------------
+    const CATEGORY_BY_NORM = Object.fromEntries(
+      DEFAULT_CATEGORIES.map((c) => [normalize(c.name), c.id])
+    );
+    function categoryFromLayer(name) {
+      if (!name) return 'otros';
+      const n = normalize(name);
+      if (CATEGORY_BY_NORM[n]) return CATEGORY_BY_NORM[n];
+      for (const [k, id] of Object.entries(CATEGORY_BY_NORM)) {
+        if (k && n.includes(k)) return id;
+      }
+      return 'otros';
+    }
+
+    async function fetchKml() {
+      let lastErr;
+      for (let i = 0; i < PROXIES.length; i++) {
+        try {
+          const url = PROXIES[i](KML_URL);
+          const res = await fetch(url, { method: 'GET' });
+          if (!res.ok) { lastErr = new Error(`HTTP ${res.status}`); continue; }
+          let text = await res.text();
+          // allorigins.win/get returns JSON {contents, status}
+          if (i === 1) {
+            try { text = JSON.parse(text).contents || ''; } catch (_) { /* keep raw */ }
+          }
+          if (!text || text.length < 200 || !text.includes('<kml')) {
+            lastErr = new Error('respuesta inválida del proxy');
+            continue;
+          }
+          return text;
+        } catch (e) {
+          lastErr = e;
+        }
+      }
+      throw lastErr || new Error('No se pudo descargar el KML');
+    }
+
+    function parsePlacemark(pm, categoryId) {
+      const point = pm.getElementsByTagName('Point')[0];
+      if (!point) return null;
+      const coordsEl = point.getElementsByTagName('coordinates')[0];
+      if (!coordsEl || !coordsEl.textContent) return null;
+      const parts = coordsEl.textContent.trim().split(',');
+      const lng = parseFloat(parts[0]);
+      const lat = parseFloat(parts[1]);
+      if (!isFinite(lat) || !isFinite(lng)) return null;
+      const nameEl = pm.getElementsByTagName('name')[0];
+      const descEl = pm.getElementsByTagName('description')[0];
+      const name = (nameEl && nameEl.textContent || 'Sin nombre').trim();
+      let desc = (descEl && descEl.textContent || '').trim();
+      desc = desc.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 300);
+      return { id: uid(), name, description: desc, lat, lng, category_id: categoryId };
+    }
+
+    function parseKml(kmlText) {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(kmlText, 'text/xml');
+      const parseError = doc.getElementsByTagName('parsererror')[0];
+      if (parseError) throw new Error('KML inválido');
+
+      const points = [];
+      const seen = new WeakSet();
+
+      const folders = doc.getElementsByTagName('Folder');
+      for (const folder of folders) {
+        const nameEl = folder.getElementsByTagName('name')[0];
+        const fname = nameEl && nameEl.textContent ? nameEl.textContent.trim() : '';
+        const catId = categoryFromLayer(fname);
+        // Direct child Placemarks only (skip nested folders).
+        const pms = folder.getElementsByTagName('Placemark');
+        for (const pm of pms) {
+          if (pm.parentNode !== folder) continue;
+          seen.add(pm);
+          const p = parsePlacemark(pm, catId);
+          if (p) points.push(p);
+        }
+      }
+      // Placemarks not inside any folder
+      const all = doc.getElementsByTagName('Placemark');
+      for (const pm of all) {
+        if (seen.has(pm)) continue;
+        const p = parsePlacemark(pm, 'otros');
+        if (p) points.push(p);
+      }
+      return points;
+    }
+
+    // -------- OPTIMIZER -----------------------------------------
+    function durationOf(p, catMap) {
+      const c = catMap[p.category_id];
+      return c ? c.duration_min : 30;
+    }
+    function weightOf(p, catMap) {
+      const c = catMap[p.category_id];
+      return c ? c.weight : 0;
+    }
+
+    function optimize(points, categories, settings) {
+      const catMap = Object.fromEntries(categories.map((c) => [c.id, c]));
+      if (!points.length) {
+        return { stops: [], total_time_min: 0, total_distance_km: 0, total_weight: 0, skipped: [] };
+      }
+      const startLat = points[0].lat, startLng = points[0].lng;
+      const budgetMin = settings.total_hours * 60;
+      const speed = Math.max(0.1, settings.speed_kmh);
+
+      let available = points.slice();
+      let cur = { lat: startLat, lng: startLng };
+      const stops = [];
+      let timeUsed = 0;
+      let totalDist = 0;
+
+      while (available.length) {
+        let best = null, bestScore = -Infinity, bestTravel = 0, bestDist = 0;
+        for (const p of available) {
+          const d = haversineKm(cur, p);
+          const travel = (d / speed) * 60;
+          const visit = durationOf(p, catMap);
+          let backMin = 0;
+          if (settings.return_to_start) {
+            const db = haversineKm(p, { lat: startLat, lng: startLng });
+            backMin = (db / speed) * 60;
+          }
+          if (timeUsed + travel + visit + backMin > budgetMin) continue;
+          const w = weightOf(p, catMap);
+          const score = (w + 1) / Math.max(0.5, travel + visit);
+          if (score > bestScore) {
+            bestScore = score; best = p; bestTravel = travel; bestDist = d;
+          }
+        }
+        if (!best) break;
+        const visit = durationOf(best, catMap);
+        const arrival = timeUsed + bestTravel;
+        const depart = arrival + visit;
+        stops.push({
+          point: best, arrival_min: arrival, depart_min: depart,
+          travel_min_from_prev: bestTravel, distance_km_from_prev: bestDist,
+          weight: weightOf(best, catMap),
+        });
+        timeUsed = depart;
+        totalDist += bestDist;
+        cur = { lat: best.lat, lng: best.lng };
+        available = available.filter((p) => p.id !== best.id);
+      }
+
+      // 2-opt to minimize travel
+      function travelOfSeq(seq) {
+        let s = { lat: startLat, lng: startLng };
+        let total = 0;
+        for (const st of seq) {
+          total += (haversineKm(s, st.point) / speed) * 60;
+          s = { lat: st.point.lat, lng: st.point.lng };
+        }
+        if (settings.return_to_start) {
+          total += (haversineKm(s, { lat: startLat, lng: startLng }) / speed) * 60;
+        }
+        return total;
+      }
+      let improved = true, guard = 0;
+      let seq = stops;
+      while (improved && guard < 30) {
+        improved = false; guard += 1;
+        for (let i = 0; i < seq.length - 1; i++) {
+          for (let j = i + 1; j < seq.length; j++) {
+            const newSeq = seq.slice(0, i).concat(seq.slice(i, j + 1).reverse(), seq.slice(j + 1));
+            if (travelOfSeq(newSeq) + 0.01 < travelOfSeq(seq)) {
+              seq = newSeq;
+              improved = true;
+            }
+          }
+        }
+      }
+
+      // Recompute arrival/depart after reorder
+      let s = { lat: startLat, lng: startLng };
+      let t = 0;
+      let tot = 0;
+      const finalStops = [];
+      for (const st of seq) {
+        const d = haversineKm(s, st.point);
+        const tm = (d / speed) * 60;
+        const arrival = t + tm;
+        const visit = durationOf(st.point, catMap);
+        const depart = arrival + visit;
+        finalStops.push({
+          point: st.point, arrival_min: arrival, depart_min: depart,
+          travel_min_from_prev: tm, distance_km_from_prev: d,
+          weight: weightOf(st.point, catMap),
+        });
+        tot += d; t = depart;
+        s = { lat: st.point.lat, lng: st.point.lng };
+      }
+      if (settings.return_to_start && finalStops.length) {
+        const db = haversineKm(s, { lat: startLat, lng: startLng });
+        tot += db; t += (db / speed) * 60;
+      }
+      const chosenIds = new Set(finalStops.map((x) => x.point.id));
+      const skipped = points.filter((p) => !chosenIds.has(p.id));
+      const totalWeight = finalStops.reduce((a, x) => a + x.weight, 0);
+      return {
+        stops: finalStops,
+        total_time_min: Math.round(t * 100) / 100,
+        total_distance_km: Math.round(tot * 1000) / 1000,
+        total_weight: Math.round(totalWeight * 100) / 100,
+        skipped,
+      };
+    }
+
+    // -------- WEIGHTS FROM CHECKBOXES ---------------------------
+    function recomputeWeights() {
+      const pref = state.categories.filter((c) => c.id !== 'otros');
+      const unsel = pref.filter((c) => !c.selected).length;
+      state.categories = state.categories.map((c) => {
+        if (c.id === 'otros') return { ...c, weight: 0 };
+        return { ...c, weight: c.selected ? unsel * 5 : 0 };
+      });
+    }
+
+    // -------- RENDER --------------------------------------------
+    function renderCategories() {
+      const root = $('#categories-list');
+      root.innerHTML = '';
+      const visible = state.categories.filter((c) => c.id !== 'otros');
+      const anyUnsel = visible.some((c) => !c.selected);
+      $('#no-pref').classList.toggle('hidden', anyUnsel);
+      for (const c of visible) {
+        const row = document.createElement('div');
+        row.className = `rounded-lg border p-2.5 transition ${c.selected ? 'border-stone-200 bg-white' : 'border-stone-200 bg-stone-50/60 opacity-80'}`;
+        row.innerHTML = `
+          <div class="flex items-center gap-2">
+            <input type="checkbox" data-cat="${c.id}" ${c.selected ? 'checked' : ''} class="cat-cb w-4 h-4 accent-orange-600" />
+            <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background:${c.color}"></span>
+            <span class="font-display font-semibold text-stone-900 text-[13px] flex-1 truncate">${c.name}</span>
+            <span class="rounded-full text-[10px] px-1.5 py-0 border ${c.selected && c.weight > 0 ? 'bg-orange-600 text-white border-orange-600' : 'border-stone-300 text-stone-500'}">
+              ${c.weight}
+            </span>
+            <div class="flex items-center gap-0.5">
+              <input type="number" data-cat-dur="${c.id}" value="${c.duration_min}"
+                class="cat-dur h-7 w-12 text-[11px] rounded-md text-right px-1.5 border border-stone-300" />
+              <span class="text-[10px] text-stone-500">min</span>
+            </div>
+          </div>
+        `;
+        root.appendChild(row);
+      }
+    }
+
+    function renderKPIs() {
+      const r = state.result;
+      $('#kpi-stops').textContent = r ? r.stops.length : 0;
+      $('#kpi-total-points').textContent = state.points.length;
+      $('#kpi-weight').textContent = r ? r.total_weight : 0;
+      $('#kpi-distance').textContent = `${(r ? r.total_distance_km : 0).toFixed(2)} km`;
+      $('#kpi-speed').textContent = state.settings.speed_kmh;
+      $('#kpi-duration').textContent = r ? formatDur(r.total_time_min) : '0 min';
+      $('#kpi-total-hours').textContent = state.settings.total_hours;
+      $('#hdr-points').textContent = state.points.length;
+      $('#hdr-stops').textContent = r ? r.stops.length : 0;
+      $('#hdr-weight').textContent = r ? r.total_weight : 0;
+    }
+
+    function renderItinerary() {
+      const r = state.result;
+      const empty = $('#itin-empty');
+      const list = $('#itin-list');
+      const badge = $('#itin-badge');
+      const skipBox = $('#itin-skipped');
+      const banner = $('#skipped-banner');
+      if (!r || r.stops.length === 0) {
+        empty.classList.remove('hidden');
+        list.classList.add('hidden');
+        skipBox.classList.add('hidden');
+        badge.classList.add('hidden');
+        banner.classList.add('hidden');
+        if (state.points.length > 0) {
+          empty.innerHTML = 'Ajustá tus preferencias y pulsá <strong>Generar ruta óptima</strong>.';
+        }
+        return;
+      }
+      empty.classList.add('hidden');
+      list.classList.remove('hidden');
+      badge.classList.remove('hidden');
+      badge.textContent = `${r.stops.length} paradas`;
+
+      const catMap = Object.fromEntries(state.categories.map((c) => [c.id, c]));
+      list.innerHTML = '';
+      r.stops.forEach((s, idx) => {
+        const cat = catMap[s.point.category_id];
+        const isLast = idx === r.stops.length - 1;
+        const li = document.createElement('li');
+        li.className = 'relative';
+        li.innerHTML = `
+          ${s.travel_min_from_prev > 0 ? `
+            <div class="ml-1 mb-1.5 mt-1.5 flex items-center gap-1.5 text-[11px] text-stone-500">
+              ↓ 🚶 ${formatDur(s.travel_min_from_prev)} · ${s.distance_km_from_prev.toFixed(2)} km
+            </div>` : ''}
+          <div class="flex gap-2.5">
+            <div class="flex flex-col items-center">
+              <span class="stop-number" style="background:${cat ? cat.color : '#ea580c'}">${idx + 1}</span>
+              ${!isLast ? '<div class="timeline-connector mt-1"></div>' : ''}
+            </div>
+            <div class="flex-1 pb-3">
+              <div class="flex items-start justify-between gap-2">
+                <div class="font-display font-semibold text-stone-900 text-[13px] leading-snug">${s.point.name}</div>
+                <div class="text-[10px] text-stone-500 whitespace-nowrap">${formatTime(s.arrival_min)} – ${formatTime(s.depart_min)}</div>
+              </div>
+              <div class="flex flex-wrap items-center gap-1.5 mt-1.5">
+                ${cat ? `<span class="rounded-full text-[9px] uppercase tracking-wider border px-1.5 py-0" style="color:${cat.color};border-color:${cat.color}">${cat.name}</span>` : ''}
+                <span class="text-[10px] text-stone-500">🕒 ${formatDur(s.depart_min - s.arrival_min)}</span>
+                <span class="text-[10px] text-amber-700">★ ${s.weight}</span>
+              </div>
+            </div>
+          </div>
+        `;
+        list.appendChild(li);
+      });
+
+      if (r.skipped.length > 0) {
+        skipBox.classList.remove('hidden');
+        skipBox.innerHTML = `
+          <p class="text-[10px] uppercase tracking-[0.18em] font-semibold text-stone-500 mb-1.5">No incluidos (${r.skipped.length})</p>
+          <div class="flex flex-col gap-1">
+            ${r.skipped.map((p) => {
+              const cat = catMap[p.category_id];
+              return `<div class="text-[11px] text-stone-600 flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full shrink-0" style="background:${cat?.color || '#a8a29e'}"></span>
+                <span class="truncate">${p.name}</span>
+              </div>`;
+            }).join('')}
+          </div>`;
+        banner.classList.remove('hidden');
+        banner.innerHTML = `<strong>${r.skipped.length}</strong> ${r.skipped.length === 1 ? 'parada omitida' : 'paradas omitidas'} por falta de tiempo. Aumentá las horas o subí el peso de sus categorías.`;
+      } else {
+        skipBox.classList.add('hidden');
+        banner.classList.add('hidden');
+      }
+    }
+
+    function renderAll() {
+      renderCategories();
+      renderKPIs();
+      renderItinerary();
+    }
+
+    // -------- ACTIONS -------------------------------------------
+    async function generateRoute() {
+      if (!state.points.length) { toast('Aún no hay puntos cargados', 'err'); return; }
+      const btn = $('#generate-btn'), label = $('#generate-label');
+      btn.disabled = true; label.textContent = 'Calculando…';
+      // Defer so UI updates first
+      await new Promise((r) => setTimeout(r, 30));
+      state.result = optimize(state.points, state.categories, state.settings);
+      $('#save-btn').disabled = false;
+      btn.disabled = false; label.textContent = 'Generar ruta óptima';
+      renderAll();
+      toast(`Ruta generada con ${state.result.stops.length} paradas`);
+    }
+
+    function saveItinerary() {
+      if (!state.result) return;
+      const name = prompt('Nombre del itinerario:');
+      if (!name || !name.trim()) return;
+      const key = 'itineraries.v1';
+      const list = JSON.parse(localStorage.getItem(key) || '[]');
+      list.unshift({
+        id: 'it_' + Date.now(),
+        name: name.trim(),
+        points: state.points,
+        categories: state.categories,
+        settings: state.settings,
+        result: state.result,
+        created_at: new Date().toISOString(),
+      });
+      localStorage.setItem(key, JSON.stringify(list));
+      toast('Itinerario guardado');
+    }
+
+    function loadItinerary() {
+      const key = 'itineraries.v1';
+      const list = JSON.parse(localStorage.getItem(key) || '[]');
+      if (!list.length) { toast('No hay itinerarios guardados', 'err'); return; }
+      // Simple prompt-based selector
+      const names = list.map((it, i) => `${i + 1}. ${it.name} (${it.result?.stops?.length || 0} paradas)`);
+      const sel = prompt('Elegí un itinerario:\n' + names.join('\n') + '\n\n(Ingresá el número, o escribí "borrar N" para eliminar)');
+      if (!sel) return;
+      const m = sel.match(/^borrar\s+(\d+)$/i);
+      if (m) {
+        const idx = parseInt(m[1], 10) - 1;
+        if (idx >= 0 && idx < list.length) {
+          list.splice(idx, 1);
+          localStorage.setItem(key, JSON.stringify(list));
+          toast('Itinerario eliminado');
+        }
+        return;
+      }
+      const idx = parseInt(sel, 10) - 1;
+      if (isNaN(idx) || idx < 0 || idx >= list.length) { toast('Selección inválida', 'err'); return; }
+      const it = list[idx];
+      state.points = it.points;
+      state.categories = it.categories;
+      state.settings = it.settings;
+      state.result = it.result;
+      // Reflect in controls
+      $('#hours-slider').value = state.settings.total_hours;
+      $('#hours-val').textContent = state.settings.total_hours;
+      $('#speed-slider').value = state.settings.speed_kmh;
+      $('#speed-val').textContent = state.settings.speed_kmh;
+      $('#return-start').checked = !!state.settings.return_to_start;
+      $('#save-btn').disabled = false;
+      renderAll();
+      toast(`Cargado: ${it.name}`);
+    }
+
+    // -------- INIT ----------------------------------------------
+    function attachEvents() {
+      $('#mymaps-iframe').src = EMBED_URL;
+
+      $('#hours-slider').addEventListener('input', (e) => {
+        state.settings.total_hours = parseFloat(e.target.value);
+        $('#hours-val').textContent = e.target.value;
+        $('#kpi-total-hours').textContent = e.target.value;
+      });
+      $('#speed-slider').addEventListener('input', (e) => {
+        state.settings.speed_kmh = parseFloat(e.target.value);
+        $('#speed-val').textContent = e.target.value;
+        $('#kpi-speed').textContent = e.target.value;
+      });
+      $$('.speed-preset').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const v = parseFloat(btn.dataset.v);
+          state.settings.speed_kmh = v;
+          $('#speed-slider').value = v;
+          $('#speed-val').textContent = v;
+          $('#kpi-speed').textContent = v;
+        });
+      });
+      $('#return-start').addEventListener('change', (e) => {
+        state.settings.return_to_start = e.target.checked;
+      });
+      $('#generate-btn').addEventListener('click', generateRoute);
+      $('#save-btn').addEventListener('click', saveItinerary);
+      $('#load-btn').addEventListener('click', loadItinerary);
+
+      document.addEventListener('change', (e) => {
+        const t = e.target;
+        if (t.classList.contains('cat-cb')) {
+          const id = t.dataset.cat;
+          state.categories = state.categories.map((c) => c.id === id ? { ...c, selected: t.checked } : c);
+          recomputeWeights();
+          renderCategories();
+        }
+      });
+      document.addEventListener('input', (e) => {
+        const t = e.target;
+        if (t.classList.contains('cat-dur')) {
+          const id = t.dataset.catDur;
+          const v = parseInt(t.value, 10) || 0;
+          state.categories = state.categories.map((c) => c.id === id ? { ...c, duration_min: v } : c);
+        }
+      });
+    }
+
+    async function bootstrap() {
+      recomputeWeights();
+      attachEvents();
+      renderAll();
+      try {
+        const kml = await fetchKml();
+        const pts = parseKml(kml);
+        if (!pts.length) {
+          $('#itin-empty').textContent = 'No se encontraron puntos en el mapa.';
+          toast('El mapa no tiene puntos visibles', 'err');
+          return;
+        }
+        state.points = pts;
+        renderKPIs();
+        $('#itin-empty').innerHTML = 'Ajustá tus preferencias y pulsá <strong>Generar ruta óptima</strong>.';
+        toast(`Importados ${pts.length} puntos del mapa`);
+      } catch (e) {
+        console.error(e);
+        $('#itin-empty').innerHTML =
+          '⚠ No se pudo descargar el KML del mapa. Los proxies CORS públicos pueden estar caídos. <br>El mapa visual sigue funcionando.';
+        toast('Error al importar el mapa: ' + e.message, 'err');
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', bootstrap);
+  })();
+  </script>
+</body>
 </html>
